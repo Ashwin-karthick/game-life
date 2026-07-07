@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Share, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, Linking, Share, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { AccountCard } from '@/components/settings/AccountCard';
 import { Button } from '@/components/ui/Button';
@@ -17,6 +17,8 @@ import { useGameStore } from '@/store/gameStore';
 import { AttributeKey } from '@/types/game';
 
 const MAX_FOCUS = 3;
+const PRIVACY_POLICY_URL = 'https://ashwinkarthick.me/game-life/privacy-policy.html';
+const DELETE_ACCOUNT_INFO_URL = 'https://ashwinkarthick.me/game-life/delete-account.html';
 
 export default function SettingsScreen() {
   const profile = useGameStore((s) => s.profile);
@@ -244,6 +246,15 @@ export default function SettingsScreen() {
         )}
       </Card>
 
+      <View style={styles.legalRow}>
+        <PressableScale haptic={false} onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}>
+          <Text style={styles.legalLink}>Privacy Policy</Text>
+        </PressableScale>
+        <PressableScale haptic={false} onPress={() => Linking.openURL(DELETE_ACCOUNT_INFO_URL)}>
+          <Text style={styles.legalLink}>Account & Data Deletion</Text>
+        </PressableScale>
+      </View>
+
       <Text style={styles.about}>Game Life v3 — a local-first, honest progression system.</Text>
     </ScreenContainer>
   );
@@ -253,6 +264,17 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  legalRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing(5),
+    marginTop: spacing(6),
+  },
+  legalLink: {
+    color: colors.accentCyan,
+    fontSize: 12,
+    fontWeight: '600',
   },
   title: {
     color: colors.textPrimary,
