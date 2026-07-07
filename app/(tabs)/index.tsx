@@ -26,6 +26,7 @@ import { XPRing } from '@/components/ui/XPRing';
 import { colors, fonts, glow, gradients, radius, spacing } from '@/constants/theme';
 import { resolveDef } from '@/lib/attributes';
 import { buildBriefing } from '@/lib/economy';
+import { usePrefersReducedMotion } from '@/lib/motion';
 import { computeHunterRank, todayLocalDateString, xpToNextLevel } from '@/lib/progression';
 import { selectTotalAP, useGameStore } from '@/store/gameStore';
 
@@ -255,9 +256,11 @@ export default function HomeScreen() {
 }
 
 function HeroShimmer() {
+  const reducedMotion = usePrefersReducedMotion();
   const t = useSharedValue(0);
 
   useEffect(() => {
+    if (reducedMotion) return;
     // A soft light stripe sweeps across the hero card every few seconds.
     t.value = withRepeat(
       withSequence(
@@ -266,13 +269,14 @@ function HeroShimmer() {
       ),
       -1
     );
-  }, [t]);
+  }, [t, reducedMotion]);
 
   const style = useAnimatedStyle(() => ({
     opacity: t.value === 0 ? 0 : 0.6,
     transform: [{ translateX: -140 + t.value * 620 }, { rotate: '18deg' }],
   }));
 
+  if (reducedMotion) return null;
   return <Animated.View pointerEvents="none" style={[styles.shimmer, style]} />;
 }
 
@@ -387,7 +391,7 @@ const styles = StyleSheet.create({
   challengeCleared: {
     color: colors.accentGold,
     fontFamily: fonts.display,
-    fontSize: 11,
+    fontSize: 12,
     letterSpacing: 1,
   },
   challengeReward: {
@@ -436,13 +440,13 @@ const styles = StyleSheet.create({
   ringLabel: {
     color: colors.textMuted,
     fontFamily: fonts.heading,
-    fontSize: 9,
+    fontSize: 12,
     letterSpacing: 2,
   },
   heroLabel: {
     color: colors.textMuted,
     fontFamily: fonts.heading,
-    fontSize: 11,
+    fontSize: 12,
     letterSpacing: 1.5,
   },
   heroTitle: {
@@ -510,7 +514,7 @@ const styles = StyleSheet.create({
   },
   attrLevel: {
     fontFamily: fonts.display,
-    fontSize: 11,
+    fontSize: 12,
   },
   attrName: {
     color: colors.textPrimary,

@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
   rationaleLabel: {
     color: colors.textMuted,
     fontFamily: fonts.heading,
-    fontSize: 11,
+    fontSize: 12,
     letterSpacing: 1.5,
     marginBottom: spacing(1),
   },

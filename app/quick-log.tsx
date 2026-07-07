@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
   },
   attrLabel: {
     color: colors.textPrimary,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
   rowWrap: {
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
   previewLabel: {
     color: colors.textMuted,
     fontFamily: fonts.heading,
-    fontSize: 10,
+    fontSize: 12,
     letterSpacing: 1.5,
   },
   previewXp: {

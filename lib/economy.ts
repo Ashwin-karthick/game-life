@@ -44,7 +44,7 @@ export function generateWeeklyChallenge(events: ProgressionEvent[], now: number)
     .filter((e) => e.type === 'xp_grant' && e.createdAt >= twoWeeksAgo)
     .reduce((sum, e) => sum + e.amount, 0);
   const weeklyPace = recentXp / 2;
-  const target = Math.min(3000, Math.max(100, Math.round((weeklyPace * 1.15) / 10) * 10));
+  const target = Math.min(30000, Math.max(1000, Math.round((weeklyPace * 1.15) / 100) * 100));
 
   return {
     weekKey: weekKeyFor(now),
@@ -81,10 +81,10 @@ const RARITY_TABLE: { rarity: Rarity; weight: number }[] = [
 ];
 
 const GEM_CACHE_VALUE: Record<Rarity, number> = {
-  common: 15,
-  rare: 40,
-  epic: 100,
-  legendary: 250,
+  common: 150,
+  rare: 400,
+  epic: 1000,
+  legendary: 2500,
 };
 
 const ARTIFACT_NAMES: Record<Rarity, string[]> = {

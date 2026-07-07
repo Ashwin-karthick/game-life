@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
   ringLabel: {
     color: colors.textMuted,
     fontFamily: fonts.heading,
-    fontSize: 9,
+    fontSize: 12,
     letterSpacing: 2,
   },
   heroInfo: {

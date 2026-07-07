@@ -16,6 +16,7 @@ const MAX_FOCUS = 3;
 
 export function OnboardingFlow() {
   const createProfile = useGameStore((s) => s.createProfile);
+  const logAction = useGameStore((s) => s.logAction);
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
   const [focusDomains, setFocusDomains] = useState<AttributeKey[]>([]);
@@ -36,6 +37,12 @@ export function OnboardingFlow() {
 
   function finish() {
     createProfile(name.trim() || 'Hunter', focusDomains, baseline);
+    // Fires the first celebration the moment they land on Home, instead of
+    // whenever they stumble into their first real action days later.
+    const firstFocusDomain = focusDomains[0];
+    if (firstFocusDomain) {
+      logAction(firstFocusDomain, 'epic', 60, 'Set up Game Life');
+    }
   }
 
   return (

@@ -1,31 +1,36 @@
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 
-const enabled = Platform.OS !== 'web';
+import { useGameStore } from '@/store/gameStore';
+
+function isEnabled(): boolean {
+  if (Platform.OS === 'web') return false;
+  return useGameStore.getState().settings.hapticsEnabled;
+}
 
 export function tapLight() {
-  if (enabled) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  if (isEnabled()) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 }
 
 export function tapMedium() {
-  if (enabled) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+  if (isEnabled()) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
 }
 
 export function tapHeavy() {
-  if (enabled) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
+  if (isEnabled()) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
 }
 
 export function selectionTick() {
-  if (enabled) Haptics.selectionAsync().catch(() => {});
+  if (isEnabled()) Haptics.selectionAsync().catch(() => {});
 }
 
 export function notifySuccess() {
-  if (enabled) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  if (isEnabled()) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
 }
 
 /** Heavy → heavy → success, spaced out. Used for rank-ups. */
 export function rankUpSequence() {
-  if (!enabled) return;
+  if (!isEnabled()) return;
   tapHeavy();
   setTimeout(tapHeavy, 150);
   setTimeout(notifySuccess, 350);

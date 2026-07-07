@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import {
+  ATTRIBUTE_DEFS,
   ATTRIBUTE_ORDER,
   createAttributeState,
   createInitialAttributeState,
@@ -33,6 +34,8 @@ import {
   updateStreakOnAction,
 } from '@/lib/progression';
 import { generateComebackQuest, generateDailyOffers, generateWeeklyOffers } from '@/lib/quests';
+import { useAuthStore } from '@/store/authStore';
+import { useUndoStore } from '@/store/undoStore';
 import {
   AttributeDef,
   AttributeKey,
@@ -63,7 +66,34 @@ export interface Celebration {
   gems?: number;
 }
 
-interface GameStore {
+/**
+ * The subset of GameStore that round-trips through Supabase. Shaped by
+ * lib/sync.ts's pullSnapshot and consumed by hydrateFromRemote below.
+ */
+export interface RemoteSnapshot {
+  profile: ProfileState;
+  attributes: Record<AttributeKey, AttributeState>;
+  attributeDefs: Record<string, AttributeDef>;
+  attributeOrder: string[];
+  events: ProgressionEvent[];
+  quests: QuestInstance[];
+  streak: StreakState;
+  settings: SettingsState;
+  wallet: WalletState;
+  habits: Habit[];
+  dailies: DailyTask[];
+  rewards: RewardDef[];
+  inventory: InventoryItem[];
+  challenge: WeeklyChallenge | null;
+  unlockedPerks: string[];
+  spentAP: number;
+  lastDailySweepDate: string | null;
+  seenIntroVersion: number;
+  /** ISO timestamp of the remote profile row's last update — used for conflict-warning copy. */
+  updatedAt: string;
+}
+
+export interface GameStore {
   profile: ProfileState | null;
   attributes: Record<AttributeKey, AttributeState>;
   events: ProgressionEvent[];
@@ -96,8 +126,10 @@ interface GameStore {
   completeQuestStep: (id: string) => void;
   abandonQuest: (id: string) => void;
   tickOnAppOpen: () => void;
+  trimOldEvents: () => void;
   updateSettings: (partial: Partial<SettingsState>) => void;
   updateFocusDomains: (domains: AttributeKey[]) => void;
+  updateProfileName: (name: string) => void;
   clearCelebration: () => void;
   resetAllData: () => void;
 
@@ -130,6 +162,11 @@ interface GameStore {
   updateReward: (id: string, fields: Partial<Pick<RewardDef, 'title' | 'cost'>>) => void;
   importData: (json: string) => boolean;
   markIntroSeen: () => void;
+  undoHabitSlip: (eventId: string) => void;
+  uncompleteDaily: (dailyId: string) => void;
+
+  // Cloud sync
+  hydrateFromRemote: (remote: RemoteSnapshot) => void;
 }
 
 const ACTIVE_QUEST_CAP = 5;
@@ -154,6 +191,33 @@ const v3Defaults = () => ({
   lastDailySweepDate: null as string | null,
   seenIntroVersion: 3,
 });
+
+// --- v3 -> v4 economy rebalance migration helpers ---------------------------
+// Old (pre-rebalance) baseXp/growthExp for the 6 built-in attributes, needed to
+// reconstruct each attribute's lifetime cumulative XP under the curve it was
+// actually earned on, before replaying that total (x10) through the new curve.
+const OLD_V3_BUILTIN_DEFS: Record<string, { baseXp: number; growthExp: number }> = {
+  health: { baseXp: 100, growthExp: 1.55 },
+  intelligence: { baseXp: 130, growthExp: 1.65 },
+  career: { baseXp: 100, growthExp: 1.55 },
+  emotion: { baseXp: 100, growthExp: 1.55 },
+  finance: { baseXp: 100, growthExp: 1.55 },
+  relationship: { baseXp: 100, growthExp: 1.55 },
+};
+
+function oldXpToNextLevel(level: number, baseXp: number, growthExp: number): number {
+  return Math.round(baseXp * Math.pow(level, growthExp));
+}
+
+function reconstructCumulativeXp(level: number, xpBuffer: number, baseXp: number, growthExp: number): number {
+  let total = xpBuffer;
+  for (let l = 1; l < level; l++) {
+    total += oldXpToNextLevel(l, baseXp, growthExp);
+  }
+  return total;
+}
+
+const XP_DENOMINATED_EVENT_TYPES = new Set(['xp_grant', 'decay', 'daily_miss', 'habit_slip', 'reward_redeem', 'challenge_clear']);
 
 function slugifyAreaKey(name: string, existing: Record<string, unknown>): string {
   const base = name
@@ -326,7 +390,7 @@ export const useGameStore = create<GameStore>()(
       events: [],
       quests: [],
       streak: { currentLen: 0, longestLen: 0, lastActiveDate: null, freezeTokens: 0 },
-      settings: { reminderEnabled: false, reminderHour: 20, reminderMinute: 0 },
+      settings: { reminderEnabled: false, reminderHour: 20, reminderMinute: 0, hapticsEnabled: true },
       celebration: null,
       hasHydrated: false,
       ...V2_DEFAULTS,
@@ -522,6 +586,27 @@ export const useGameStore = create<GameStore>()(
           challenge: newChallenge,
           lastDailySweepDate: today,
         });
+
+        get().trimOldEvents();
+      },
+
+      trimOldEvents: () => {
+        // Never trims a guest's (or never-synced) events — there's no cloud
+        // backup to fall back on, so nothing is safe to discard locally.
+        const { lastSyncedEventId } = useAuthStore.getState();
+        if (!lastSyncedEventId) return;
+
+        const { events } = get();
+        const ninetyDaysAgo = Date.now() - 90 * DAY_MS;
+        const ageIdx = events.findIndex((e) => e.createdAt >= ninetyDaysAgo);
+        const ageBoundary = ageIdx === -1 ? events.length : ageIdx;
+
+        const syncedIdx = events.findIndex((e) => e.id === lastSyncedEventId);
+        const syncBoundary = syncedIdx === -1 ? 0 : syncedIdx + 1;
+
+        const trimBoundary = Math.min(ageBoundary, syncBoundary);
+        if (trimBoundary <= 0) return;
+        set({ events: events.slice(trimBoundary) });
       },
 
       updateSettings: (partial) => set({ settings: { ...get().settings, ...partial } }),
@@ -530,6 +615,13 @@ export const useGameStore = create<GameStore>()(
         const { profile } = get();
         if (!profile) return;
         set({ profile: { ...profile, focusDomains: domains } });
+      },
+
+      updateProfileName: (name) => {
+        const { profile } = get();
+        const trimmed = name.trim();
+        if (!profile || !trimmed) return;
+        set({ profile: { ...profile, name: trimmed } });
       },
 
       clearCelebration: () => set({ celebration: null }),
@@ -542,7 +634,7 @@ export const useGameStore = create<GameStore>()(
           events: [],
           quests: [],
           streak: { currentLen: 0, longestLen: 0, lastActiveDate: null, freezeTokens: 0 },
-          settings: { reminderEnabled: false, reminderHour: 20, reminderMinute: 0 },
+          settings: { reminderEnabled: false, reminderHour: 20, reminderMinute: 0, hapticsEnabled: true },
           celebration: null,
           ...V2_DEFAULTS,
           ...v3Defaults(),
@@ -590,13 +682,14 @@ export const useGameStore = create<GameStore>()(
           const penalty = Math.round(baseActionXp(habit.difficulty, 15));
           const attr = state.attributes[habit.attributeKey];
           const newBuffer = Math.max(0, attr.xpBuffer - penalty);
+          const eventId = generateId();
           set({
             habits,
             attributes: { ...state.attributes, [habit.attributeKey]: { ...attr, xpBuffer: newBuffer } },
             events: [
               ...state.events,
               {
-                id: generateId(),
+                id: eventId,
                 type: 'habit_slip',
                 attributeKey: habit.attributeKey,
                 amount: -(attr.xpBuffer - newBuffer),
@@ -605,6 +698,7 @@ export const useGameStore = create<GameStore>()(
               },
             ],
           });
+          useUndoStore.getState().offer({ kind: 'habit_slip', id: eventId, label: `Slipped: ${habit.title}` });
         }
       },
 
@@ -633,6 +727,7 @@ export const useGameStore = create<GameStore>()(
         const today = todayLocalDateString(now);
         if (!daily || daily.completedDates.includes(today)) return;
 
+        const beforeLevel = state.attributes[daily.attributeKey]?.level ?? 1;
         const dailies = state.dailies.map((d) =>
           d.id === id ? { ...d, completedDates: trimDates([...d.completedDates, today]) } : d
         );
@@ -640,6 +735,13 @@ export const useGameStore = create<GameStore>()(
           dropChance: DROP_CHANCE.daily,
         });
         set({ ...outcome, dailies });
+
+        // Undo can't safely walk back a level-up (another action might touch
+        // the same attribute in the meantime), so it's simply never offered then.
+        const afterLevel = outcome.attributes[daily.attributeKey]?.level ?? beforeLevel;
+        if (afterLevel === beforeLevel) {
+          useUndoStore.getState().offer({ kind: 'daily_complete', id: daily.id, label: `Completed: ${daily.title}` });
+        }
       },
 
       archiveDaily: (id) => {
@@ -727,7 +829,7 @@ export const useGameStore = create<GameStore>()(
           description: 'A custom area you added.',
           color,
           icon,
-          baseXp: 100,
+          baseXp: 160,
           growthExp: 1.55,
           decayPctDaily: 0.005,
           custom: true,
@@ -807,10 +909,121 @@ export const useGameStore = create<GameStore>()(
       },
 
       markIntroSeen: () => set({ seenIntroVersion: 3 }),
+
+      undoHabitSlip: (eventId) => {
+        const now = Date.now();
+        const state = get();
+        const event = state.events.find((e) => e.id === eventId && e.type === 'habit_slip');
+        if (!event || !event.attributeKey) return;
+        const attr = state.attributes[event.attributeKey];
+        if (!attr) return;
+
+        const restored = Math.abs(event.amount);
+        set({
+          attributes: { ...state.attributes, [event.attributeKey]: { ...attr, xpBuffer: attr.xpBuffer + restored } },
+          events: [
+            ...state.events,
+            {
+              id: generateId(),
+              type: 'habit_slip_undo',
+              attributeKey: event.attributeKey,
+              amount: restored,
+              note: `Undid: ${event.note.replace(/^Slipped: /, '')}`,
+              createdAt: now,
+            },
+          ],
+        });
+      },
+
+      uncompleteDaily: (dailyId) => {
+        const now = Date.now();
+        const state = get();
+        const daily = state.dailies.find((d) => d.id === dailyId);
+        if (!daily) return;
+        const today = todayLocalDateString(now);
+        if (!daily.completedDates.includes(today)) return;
+
+        // Matched by note + same-day timestamp, since the grant doesn't
+        // otherwise link its events back to the daily that caused them.
+        const matchNote = `Daily: ${daily.title}`;
+        const matching = state.events.filter(
+          (e) =>
+            (e.type === 'xp_grant' || e.type === 'loot_drop') &&
+            e.note === matchNote &&
+            todayLocalDateString(e.createdAt) === today
+        );
+        if (matching.length === 0) return;
+
+        let attributes = state.attributes;
+        let wallet = state.wallet;
+        let inventory = state.inventory;
+
+        for (const e of matching) {
+          if (e.type === 'xp_grant' && e.attributeKey) {
+            const attr = attributes[e.attributeKey];
+            if (attr) {
+              attributes = { ...attributes, [e.attributeKey]: { ...attr, xpBuffer: Math.max(0, attr.xpBuffer - e.amount) } };
+            }
+            // Gems earned alongside this grant weren't recorded as their own
+            // event — recompute the same amount performGrant granted and
+            // reverse it (perks/boosts are extremely unlikely to have
+            // changed within the few seconds the undo window is open for).
+            const gemsToReverse = Math.round(gemsForXp(e.amount) * gemMultiplier(state.unlockedPerks));
+            wallet = { ...wallet, gems: Math.max(0, wallet.gems - gemsToReverse) };
+          } else if (e.type === 'loot_drop') {
+            inventory = inventory.filter((i) => i.obtainedAt !== e.createdAt);
+          }
+        }
+
+        set({
+          dailies: state.dailies.map((d) =>
+            d.id === dailyId ? { ...d, completedDates: d.completedDates.filter((x) => x !== today) } : d
+          ),
+          attributes,
+          wallet,
+          inventory,
+          events: [
+            ...state.events,
+            {
+              id: generateId(),
+              type: 'daily_uncomplete',
+              attributeKey: daily.attributeKey,
+              amount: 0,
+              note: `Undid: ${daily.title}`,
+              createdAt: now,
+            },
+          ],
+        });
+      },
+
+      hydrateFromRemote: (remote) => {
+        set({
+          profile: remote.profile,
+          attributes: remote.attributes,
+          attributeDefs: remote.attributeDefs,
+          attributeOrder: remote.attributeOrder,
+          events: remote.events,
+          quests: remote.quests,
+          streak: remote.streak,
+          settings: remote.settings,
+          wallet: remote.wallet,
+          habits: remote.habits,
+          dailies: remote.dailies,
+          rewards: remote.rewards,
+          inventory: remote.inventory,
+          challenge: remote.challenge,
+          unlockedPerks: remote.unlockedPerks,
+          spentAP: remote.spentAP,
+          lastDailySweepDate: remote.lastDailySweepDate,
+          seenIntroVersion: remote.seenIntroVersion,
+          hasHydrated: true,
+          celebration: null,
+        });
+      },
     }),
     {
       name: 'game-life-store',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => AsyncStorage),
       migrate: (persisted: any, version) => {
         let state = persisted;
@@ -830,6 +1043,63 @@ export const useGameStore = create<GameStore>()(
               ...d,
               weekdays: d.weekdays ?? [0, 1, 2, 3, 4, 5, 6],
             })),
+          };
+        }
+        if (version < 4) {
+          const now = Date.now();
+          const oldAttributeDefs: Record<string, any> = state.attributeDefs ?? {};
+          const oldAttributes: Record<string, any> = state.attributes ?? {};
+          const newAttributeDefs: Record<string, any> = { ...oldAttributeDefs };
+          const newAttributes: Record<string, any> = {};
+
+          for (const key of Object.keys(oldAttributes)) {
+            const oldAttr = oldAttributes[key];
+            const isBuiltin = Object.prototype.hasOwnProperty.call(ATTRIBUTE_DEFS, key);
+            const oldDef = isBuiltin ? OLD_V3_BUILTIN_DEFS[key] : oldAttributeDefs[key] ?? { baseXp: 100, growthExp: 1.55 };
+            const cumulativeOld = reconstructCumulativeXp(oldAttr.level ?? 1, oldAttr.xpBuffer ?? 0, oldDef.baseXp, oldDef.growthExp);
+            const convertedTotal = Math.round(cumulativeOld * 10);
+
+            let newDef: { baseXp: number; growthExp: number };
+            if (isBuiltin) {
+              const rebalanced = (ATTRIBUTE_DEFS as any)[key];
+              newDef = { baseXp: rebalanced.baseXp, growthExp: rebalanced.growthExp };
+              newAttributeDefs[key] = { ...oldAttributeDefs[key], baseXp: newDef.baseXp, growthExp: newDef.growthExp };
+            } else {
+              const existingCustomDef = oldAttributeDefs[key];
+              const bumpedBaseXp = existingCustomDef ? Math.round(existingCustomDef.baseXp * 1.6) : 160;
+              newDef = { baseXp: bumpedBaseXp, growthExp: existingCustomDef?.growthExp ?? 1.55 };
+              if (existingCustomDef) {
+                newAttributeDefs[key] = { ...existingCustomDef, baseXp: bumpedBaseXp };
+              }
+            }
+
+            const fresh = { level: 1, xpBuffer: 0, totalAP: 0, lastDecayAt: now, lastActionAt: null };
+            const replay = applyXpGrant(fresh, newDef, convertedTotal, 0, now);
+            newAttributes[key] = {
+              ...replay.state,
+              lastDecayAt: oldAttr.lastDecayAt ?? now,
+              lastActionAt: oldAttr.lastActionAt ?? null,
+            };
+          }
+
+          state = {
+            ...state,
+            attributes: newAttributes,
+            attributeDefs: newAttributeDefs,
+            wallet: { ...state.wallet, gems: (state.wallet?.gems ?? 0) * 10 },
+            rewards: (state.rewards ?? []).map((r: any) => ({ ...r, cost: r.cost * 10 })),
+            events: (state.events ?? []).map((e: any) =>
+              XP_DENOMINATED_EVENT_TYPES.has(e.type) ? { ...e, amount: e.amount * 10 } : e
+            ),
+            challenge: state.challenge
+              ? {
+                  ...state.challenge,
+                  targetXp: state.challenge.targetXp * 10,
+                  progressXp: state.challenge.progressXp * 10,
+                  gemReward: state.challenge.gemReward * 10,
+                }
+              : state.challenge,
+            settings: { ...state.settings, hapticsEnabled: state.settings?.hapticsEnabled ?? true },
           };
         }
         return state;

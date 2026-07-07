@@ -16,12 +16,14 @@ import { RANK_COLORS, RankBadge } from '@/components/ui/RankBadge';
 import { colors, fonts, glow, spacing } from '@/constants/theme';
 import { resolveDef } from '@/lib/attributes';
 import { notifySuccess, rankUpSequence } from '@/lib/haptics';
+import { usePrefersReducedMotion } from '@/lib/motion';
 import { useGameStore } from '@/store/gameStore';
 
 export function CelebrationOverlay() {
   const celebration = useGameStore((s) => s.celebration);
   const clearCelebration = useGameStore((s) => s.clearCelebration);
   const attributeDefs = useGameStore((s) => s.attributeDefs);
+  const reducedMotion = usePrefersReducedMotion();
 
   useEffect(() => {
     if (!celebration) return;
@@ -43,11 +45,13 @@ export function CelebrationOverlay() {
   return (
     <Modal transparent animationType="fade" visible onRequestClose={clearCelebration}>
       <Pressable style={styles.backdrop} onPress={clearCelebration}>
-        <View style={styles.stage} pointerEvents="none">
-          <Shockwave color={accent} />
-          <Shockwave color={accent} delay={180} />
-          <ParticleBurst color={accent} />
-        </View>
+        {!reducedMotion && (
+          <View style={styles.stage} pointerEvents="none">
+            <Shockwave color={accent} />
+            <Shockwave color={accent} delay={180} />
+            <ParticleBurst color={accent} />
+          </View>
+        )}
 
         <Animated.View
           entering={ZoomIn.springify().damping(11).stiffness(140)}

@@ -21,6 +21,8 @@ const TYPE_LABEL: Record<EventType, string> = {
   reward_redeem: 'Reward',
   loot_drop: 'Item Found',
   challenge_clear: 'Challenge Cleared',
+  habit_slip_undo: 'Slip Undone',
+  daily_uncomplete: 'Daily Undone',
 };
 
 export default function JournalScreen() {
@@ -90,7 +92,7 @@ const styles = StyleSheet.create({
   },
   muted: {
     color: colors.textMuted,
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 2,
   },
   amount: {

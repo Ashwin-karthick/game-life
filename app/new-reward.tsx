@@ -9,7 +9,7 @@ import { colors, fonts, radius, spacing } from '@/constants/theme';
 import { selectionTick } from '@/lib/haptics';
 import { useGameStore } from '@/store/gameStore';
 
-const COST_OPTIONS = [25, 50, 100, 200, 400];
+const COST_OPTIONS = [250, 500, 1000, 2000, 4000];
 
 export default function NewRewardScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -19,7 +19,7 @@ export default function NewRewardScreen() {
 
   const editing = useMemo(() => (id ? rewards.find((r) => r.id === id) : undefined), [id, rewards]);
   const [title, setTitle] = useState(editing?.title ?? '');
-  const [cost, setCost] = useState(editing && COST_OPTIONS.includes(editing.cost) ? editing.cost : 50);
+  const [cost, setCost] = useState(editing && COST_OPTIONS.includes(editing.cost) ? editing.cost : 500);
   const [customCost, setCustomCost] = useState(
     editing && !COST_OPTIONS.includes(editing.cost) ? String(editing.cost) : ''
   );
@@ -75,7 +75,7 @@ export default function NewRewardScreen() {
           onChangeText={setCustomCost}
         />
       </View>
-      <Text style={styles.hint}>Rule of thumb: a day of solid effort earns roughly 30–80 gems.</Text>
+      <Text style={styles.hint}>Rule of thumb: a day of solid effort earns roughly 300–800 gems.</Text>
 
       <View style={styles.row}>
         <Button variant="ghost" onPress={() => router.back()} style={{ flex: 1 }}>

@@ -133,19 +133,19 @@ const styles = StyleSheet.create({
     fontFamily: fonts.heading,
   },
   focusTag: {
-    fontSize: 10,
+    fontSize: 12,
     fontFamily: fonts.display,
     letterSpacing: 1,
   },
   customTag: {
-    fontSize: 10,
+    fontSize: 12,
     fontFamily: fonts.display,
     letterSpacing: 1,
     color: colors.textMuted,
   },
   muted: {
     color: colors.textMuted,
-    fontSize: 11,
+    fontSize: 12,
     marginTop: spacing(1),
   },
 });

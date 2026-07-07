@@ -47,7 +47,9 @@ export type EventType =
   | 'daily_miss'
   | 'reward_redeem'
   | 'loot_drop'
-  | 'challenge_clear';
+  | 'challenge_clear'
+  | 'habit_slip_undo'
+  | 'daily_uncomplete';
 
 export interface ProgressionEvent {
   id: string;
@@ -98,6 +100,7 @@ export interface SettingsState {
   reminderEnabled: boolean;
   reminderHour: number;
   reminderMinute: number;
+  hapticsEnabled: boolean;
 }
 
 export type HunterRankTier = 'E' | 'D' | 'C' | 'B' | 'A' | 'S';

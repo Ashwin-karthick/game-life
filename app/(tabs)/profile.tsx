@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
   statLabel: {
     color: colors.textMuted,
     fontFamily: fonts.heading,
-    fontSize: 10,
+    fontSize: 12,
     letterSpacing: 1.5,
   },
   sectionLabel: {
@@ -231,12 +231,12 @@ const styles = StyleSheet.create({
   badgeName: {
     color: colors.textPrimary,
     fontFamily: fonts.heading,
-    fontSize: 11,
+    fontSize: 12,
     textAlign: 'center',
   },
   badgeDesc: {
     color: colors.textMuted,
-    fontSize: 9,
+    fontSize: 12,
     textAlign: 'center',
     lineHeight: 12,
   },

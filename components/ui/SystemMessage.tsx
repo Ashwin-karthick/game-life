@@ -44,7 +44,7 @@ const styles = StyleSheet.create({
   },
   header: {
     fontFamily: fonts.display,
-    fontSize: 11,
+    fontSize: 12,
     letterSpacing: 3,
   },
   body: {

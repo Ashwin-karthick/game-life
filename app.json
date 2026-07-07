@@ -41,7 +41,9 @@
           "icon": "./assets/images/icon.png",
           "color": "#22D3EE"
         }
-      ]
+      ],
+      "expo-secure-store",
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": true

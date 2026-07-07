@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
   summaryLabel: {
     color: colors.textMuted,
     fontFamily: fonts.heading,
-    fontSize: 10,
+    fontSize: 12,
     letterSpacing: 1.5,
   },
   sectionLabel: {
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
   },
   dayLabel: {
     color: colors.textMuted,
-    fontSize: 10,
+    fontSize: 12,
     width: 14,
     textAlign: 'center',
   },

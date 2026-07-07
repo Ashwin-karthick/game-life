@@ -2,7 +2,7 @@
 
 Turn your real life into an honest progression system. Log real actions, build habits and dailies, take on quests, and watch six (or more) life attributes level up — no fake grinding, no pay-to-win, just effort you actually put in.
 
-Built with [Expo](https://expo.dev) (SDK 57) and React Native, local-first with no backend or account required.
+Built with [Expo](https://expo.dev) (SDK 57) and React Native, local-first with an optional Supabase-backed account for cloud backup and sync.
 
 ## Features
 
@@ -16,9 +16,18 @@ Built with [Expo](https://expo.dev) (SDK 57) and React Native, local-first with 
 - **Analytics** — 7-day XP chart, 5-week activity heatmap, and a balance index showing how evenly you're growing.
 - **Achievements** — a full badge wall with locked/unlocked states.
 - **Daily briefing** — a plain-language morning readout: streak status, dailies remaining, your quietest area, challenge progress.
-- **Backup & restore** — export your data as JSON and restore it on a new device, no account needed.
+- **Backup & restore** — export your data as JSON and restore it on a new device, no account needed. Optionally sign in with email + password to back up to the cloud and sync across devices.
 
-Everything is local-first — your data lives on your device via AsyncStorage. Nothing is sent anywhere.
+Everything is local-first — every screen reads and writes to on-device storage instantly, with no network wait. Signing in is entirely optional: without an account, nothing ever leaves the device. With one, changes sync to Supabase in the background without ever blocking the UI.
+
+### Cloud sync setup (optional)
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. In the Supabase Dashboard's SQL Editor, run `supabase/migration_001_init.sql` once.
+3. Copy `.env.example` to `.env` and fill in your project's URL and anon key (Dashboard → Settings → API).
+4. Restart the dev server. A "Back up & Sync" card appears in Settings.
+
+Without a `.env` file, the app runs exactly as before — fully local, no sign-in prompt blocks anything.
 
 ## Tech stack
 

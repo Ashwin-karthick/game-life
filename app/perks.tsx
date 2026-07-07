@@ -110,13 +110,13 @@ const styles = StyleSheet.create({
   balanceLabel: {
     color: colors.textMuted,
     fontFamily: fonts.heading,
-    fontSize: 11,
+    fontSize: 12,
     letterSpacing: 1.5,
     marginTop: 6,
   },
   balanceHint: {
     color: colors.textMuted,
-    fontSize: 11,
+    fontSize: 12,
   },
   intro: {
     color: colors.textMuted,

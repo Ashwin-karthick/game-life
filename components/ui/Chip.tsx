@@ -32,7 +32,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   text: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: fonts.heading,
     letterSpacing: 1,
   },

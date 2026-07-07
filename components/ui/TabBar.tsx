@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontFamily: fonts.heading,
-    fontSize: 10,
+    fontSize: 12,
     letterSpacing: 0.5,
   },
 });

@@ -4,11 +4,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const MULTIPLIER_CAP = 3.0;
 
 export const DIFFICULTY_WEIGHT: Record<Difficulty, number> = {
-  trivial: 1.0,
-  easy: 1.5,
-  medium: 2.5,
-  hard: 4,
-  epic: 5,
+  trivial: 10,
+  easy: 15,
+  medium: 25,
+  hard: 40,
+  epic: 50,
 };
 
 export function effortMinutesFactor(minutes: number): number {

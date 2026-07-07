@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Share, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
+import { AccountCard } from '@/components/settings/AccountCard';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { PressableScale } from '@/components/ui/PressableScale';
@@ -11,6 +12,7 @@ import { colors, fonts, spacing } from '@/constants/theme';
 import { resolveDef } from '@/lib/attributes';
 import { confirmDestructive } from '@/lib/confirm';
 import { notifySuccess } from '@/lib/haptics';
+import { resetSyncCursor, useAuthStore } from '@/store/authStore';
 import { useGameStore } from '@/store/gameStore';
 import { AttributeKey } from '@/types/game';
 
@@ -19,15 +21,31 @@ const MAX_FOCUS = 3;
 export default function SettingsScreen() {
   const profile = useGameStore((s) => s.profile);
   const updateFocusDomains = useGameStore((s) => s.updateFocusDomains);
+  const updateProfileName = useGameStore((s) => s.updateProfileName);
+  const settings = useGameStore((s) => s.settings);
+  const updateSettings = useGameStore((s) => s.updateSettings);
   const resetAllData = useGameStore((s) => s.resetAllData);
   const importData = useGameStore((s) => s.importData);
   const attributeDefs = useGameStore((s) => s.attributeDefs);
   const attributeOrder = useGameStore((s) => s.attributeOrder);
   const fullState = useGameStore((s) => s);
+  const session = useAuthStore((s) => s.session);
+  const deleteAccount = useAuthStore((s) => s.deleteAccount);
 
   const [focusDomains, setFocusDomains] = useState<AttributeKey[]>(profile?.focusDomains ?? []);
+  const [nameDraft, setNameDraft] = useState(profile?.name ?? '');
   const [importText, setImportText] = useState('');
   const [importStatus, setImportStatus] = useState<'idle' | 'ok' | 'error'>('idle');
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
+  function saveName() {
+    const trimmed = nameDraft.trim();
+    if (!trimmed || trimmed === profile?.name) {
+      setNameDraft(profile?.name ?? '');
+      return;
+    }
+    updateProfileName(trimmed);
+  }
 
   const activeKeys = useMemo(
     () => attributeOrder.filter((k) => attributeDefs[k] && !attributeDefs[k].archived),
@@ -89,6 +107,27 @@ export default function SettingsScreen() {
       'Delete Everything',
       () => {
         resetAllData();
+        resetSyncCursor();
+        router.replace('/');
+      }
+    );
+  }
+
+  function confirmDeleteAccount() {
+    confirmDestructive(
+      'Delete your account?',
+      'This permanently deletes your account and everything backed up to the cloud — profile, attributes, quests, and journal. This cannot be undone.',
+      'Delete Account',
+      async () => {
+        setDeletingAccount(true);
+        const result = await deleteAccount();
+        setDeletingAccount(false);
+        if (result.error) {
+          Alert.alert("Couldn't delete account", result.error);
+          return;
+        }
+        resetAllData();
+        resetSyncCursor();
         router.replace('/');
       }
     );
@@ -107,8 +146,31 @@ export default function SettingsScreen() {
 
       <Card>
         <Text style={styles.sectionLabel}>HUNTER NAME</Text>
-        <TextInput style={styles.input} value={profile?.name} editable={false} placeholderTextColor={colors.textMuted} />
-        <Text style={styles.muted}>Name is set once during onboarding.</Text>
+        <TextInput
+          style={styles.input}
+          value={nameDraft}
+          onChangeText={setNameDraft}
+          onBlur={saveName}
+          onSubmitEditing={saveName}
+          placeholderTextColor={colors.textMuted}
+          maxLength={40}
+        />
+        <Text style={styles.muted}>Tap to rename — changes save automatically.</Text>
+      </Card>
+
+      <Card style={{ marginTop: spacing(4) }}>
+        <View style={styles.row}>
+          <Ionicons name="phone-portrait" size={20} color={colors.accentCyan} />
+          <View style={{ flex: 1, marginLeft: spacing(3) }}>
+            <Text style={styles.title}>Haptic feedback</Text>
+            <Text style={styles.muted}>Little taps and buzzes on level-ups, taps, and toggles.</Text>
+          </View>
+          <Switch
+            value={settings.hapticsEnabled}
+            onValueChange={(v) => updateSettings({ hapticsEnabled: v })}
+            trackColor={{ false: colors.bgSurfaceRaised, true: colors.accentCyan }}
+          />
+        </View>
       </Card>
 
       <Card style={{ marginTop: spacing(4) }}>
@@ -130,8 +192,12 @@ export default function SettingsScreen() {
         </View>
       </Card>
 
+      <View style={{ marginTop: spacing(4) }}>
+        <AccountCard />
+      </View>
+
       <Card style={{ marginTop: spacing(4) }}>
-        <Text style={styles.sectionLabel}>BACKUP</Text>
+        <Text style={styles.sectionLabel}>LOCAL BACKUP</Text>
         <Text style={styles.muted}>Everything lives only on this device. Export a copy, or restore one on a new phone.</Text>
         <View style={{ marginTop: spacing(4), gap: spacing(3) }}>
           <Button variant="secondary" onPress={exportData}>
@@ -165,6 +231,17 @@ export default function SettingsScreen() {
         <Button variant="danger" onPress={confirmReset} style={{ marginTop: spacing(2) }}>
           Reset All Data
         </Button>
+        {session && (
+          <Button
+            variant="danger"
+            onPress={confirmDeleteAccount}
+            loading={deletingAccount}
+            disabled={deletingAccount}
+            style={{ marginTop: spacing(3) }}
+          >
+            Delete Account
+          </Button>
+        )}
       </Card>
 
       <Text style={styles.about}>Game Life v3 — a local-first, honest progression system.</Text>
@@ -173,6 +250,15 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  title: {
+    color: colors.textPrimary,
+    fontWeight: '700',
+    fontSize: 14,
+  },
   sectionLabel: {
     color: colors.textMuted,
     fontFamily: fonts.heading,
@@ -213,7 +299,7 @@ const styles = StyleSheet.create({
   },
   about: {
     color: colors.textMuted,
-    fontSize: 11,
+    fontSize: 12,
     textAlign: 'center',
     marginTop: spacing(6),
   },

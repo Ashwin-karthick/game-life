@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
   },
   polarityDesc: {
     color: colors.textMuted,
-    fontSize: 11,
+    fontSize: 12,
   },
   dayPill: {
     width: 38,
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
   },
   attrLabel: {
     color: colors.textPrimary,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
   pill: {

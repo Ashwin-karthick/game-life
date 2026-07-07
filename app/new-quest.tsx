@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   },
   attrLabel: {
     color: colors.textPrimary,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
   pill: {

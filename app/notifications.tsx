@@ -1,13 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { Card } from '@/components/ui/Card';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors, spacing } from '@/constants/theme';
 import {
   cancelDailyReminder,
+  getReminderPermissionStatus,
   isReminderSupported,
   requestNotificationPermission,
   scheduleDailyReminder,
@@ -26,6 +27,19 @@ export default function NotificationsScreen() {
     setBusy(true);
     try {
       if (value) {
+        const status = await getReminderPermissionStatus();
+        if (status === 'denied') {
+          Alert.alert(
+            'Notifications are turned off',
+            'You previously turned off notifications for Game Life. Enable them in your device settings to get a daily reminder.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            ]
+          );
+          setBusy(false);
+          return;
+        }
         const granted = await requestNotificationPermission();
         if (!granted) {
           Alert.alert('Permission needed', 'Enable notifications for Game Life in your device settings to get a daily reminder.');
