@@ -12,6 +12,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.ashwinkarthick.gamelife",
       "adaptiveIcon": {
         "backgroundColor": "#0A0E14",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -38,7 +39,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/icon.png",
+          "icon": "./assets/images/android-icon-monochrome.png",
           "color": "#22D3EE"
         }
       ],
