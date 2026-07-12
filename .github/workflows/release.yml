@@ -1,0 +1,107 @@
+name: Build & Release
+
+# Fires when a version tag (e.g. v1.0.0) is pushed, and can also be run
+# manually from the Actions tab to test the build without cutting a release.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # React Native 0.86 (Expo SDK 57) builds against JDK 17.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --no-install
+
+      # Expo's generated release build type signs with the bundled debug
+      # keystore, so this APK is installable (sideload) out of the box — it is
+      # NOT a Play Store upload key. See the README's download notes.
+      - name: Build release APK
+        run: |
+          cd android
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Collect APK
+        run: |
+          mkdir -p artifacts
+          cp android/app/build/outputs/apk/release/app-release.apk "artifacts/game-life-${{ github.ref_name }}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: artifacts/*.apk
+
+  web:
+    name: Build Web bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Export static web build
+        run: npx expo export --platform web
+
+      - name: Zip web build
+        run: |
+          mkdir -p artifacts
+          cd dist && zip -r "../artifacts/game-life-web-${{ github.ref_name }}.zip" . && cd ..
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-zip
+          path: artifacts/*.zip
+
+  release:
+    name: Publish Release
+    needs: [android, web]
+    # Publish as long as the APK built — a flaky web export never blocks the
+    # Android release. Only runs for tag pushes, not manual dispatch.
+    if: always() && needs.android.result == 'success' && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
+          body: |
+            ## Downloads
+
+            - **Android** — grab the `game-life-*.apk` below and open it on your phone. Android will warn about an "unknown developer" because this build is signed with a debug key (fine for trying it out; it is not a Play Store release).
+            - **Windows / macOS / Linux / any browser** — `game-life-web-*.zip` is the static web build. Serve it with any static file server, or just run the app from source: `npm install && npm run web`.
+            - **iOS** — Apple doesn't allow installable app downloads outside the App Store / TestFlight. Build it from source (see the README) with a Mac + Apple Developer account, or run it in Expo Go.
