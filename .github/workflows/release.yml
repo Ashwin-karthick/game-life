@@ -15,6 +15,12 @@ jobs:
   android:
     name: Build Android APK
     runs-on: ubuntu-latest
+    # Sentry ships disabled (no DSN/org in this open-source build), so skip its
+    # release source-map/debug-symbol upload — otherwise the Gradle task fails
+    # with "An organization ID or slug is required".
+    env:
+      SENTRY_DISABLE_AUTO_UPLOAD: 'true'
+      SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD: 'true'
     steps:
       - uses: actions/checkout@v4
 
